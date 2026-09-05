@@ -3,25 +3,23 @@ import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
-  /** Wordmark next to the mark; off for tight spaces. */
-  showWordmark?: boolean;
+  /** Height of the mark in px; the wordmark scales with it. */
+  size?: number;
 }
 
-export function Logo({ className, showWordmark = true }: LogoProps) {
+/**
+ * The DealMate mark. The uploaded artwork already contains the wordmark,
+ * so we render it as a single contained image and let callers size it.
+ */
+export function Logo({ className, size = 34 }: LogoProps) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <img
-        src={logo.url}
-        alt="DealMate"
-        width={40}
-        height={40}
-        className="h-9 w-9 rounded-md object-cover"
-      />
-      {showWordmark ? (
-        <span className="font-display text-lg font-bold tracking-tight text-foreground">
-          Deal<span className="text-primary">Mate</span>
-        </span>
-      ) : null}
-    </span>
+    <img
+      src={logo.url}
+      alt="DealMate"
+      width={size * 1.55}
+      height={size}
+      style={{ height: size }}
+      className={cn("w-auto rounded-md object-contain", className)}
+    />
   );
 }
