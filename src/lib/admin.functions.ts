@@ -10,9 +10,15 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function assertSeller(supabase: {
-  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown }>;
-}, userId: string) {
+/** The RLS-scoped client injected by the auth middleware. */
+type SupabaseAuthedClient = Parameters<typeof identity>[0];
+const identity = (client: import("@supabase/supabase-js").SupabaseClient<
+  import("@/integrations/supabase/types").Database
+>) => client;
+
+type SellerContext = { supabase: SupabaseAuthedClient; userId: string };
+
+async function assertSeller({ supabase, userId }: SellerContext) {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "seller" });
   if (data !== true) throw new Error("Seller access required.");
 }
@@ -46,7 +52,7 @@ export const claimSellerAccess = createServerFn({ method: "POST" })
 export const getSellerData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertSeller(context.supabase, context.userId);
+    await assertSeller(context);
 
     const [products, offers, orders] = await Promise.all([
       context.supabase.from("products").select("*").order("category").order("name"),
@@ -71,7 +77,7 @@ export const updateStock = createServerFn({ method: "POST" })
     z.object({ productId: z.string().uuid(), stock: z.number().int().min(0).max(999) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertSeller(context.supabase, context.userId);
+    await assertSeller(context);
     const { error } = await context.supabase
       .from("products")
       .update({ stock_count: data.stock })
@@ -94,7 +100,7 @@ export const upsertOffer = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertSeller(context.supabase, context.userId);
+    await assertSeller(context);
     const expiresAt = new Date(Date.now() + data.minutes * 60_000).toISOString();
 
     if (data.offerId) {
@@ -121,7 +127,7 @@ export const setOfferActive = createServerFn({ method: "POST" })
     z.object({ offerId: z.string().uuid(), active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertSeller(context.supabase, context.userId);
+    await assertSeller(context);
     const { error } = await context.supabase
       .from("live_offers")
       .update({ active: data.active })
