@@ -14,16 +14,262 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversation_messages: {
+        Row: {
+          agent: Database["public"]["Enums"]["agent_kind"] | null
+          content: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["message_role"]
+          session_id: string
+        }
+        Insert: {
+          agent?: Database["public"]["Enums"]["agent_kind"] | null
+          content: string
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["message_role"]
+          session_id: string
+        }
+        Update: {
+          agent?: Database["public"]["Enums"]["agent_kind"] | null
+          content?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["message_role"]
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "negotiation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_offers: {
+        Row: {
+          active: boolean
+          created_at: string
+          discount_pct: number
+          expires_at: string
+          id: string
+          product_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          discount_pct: number
+          expires_at: string
+          id?: string
+          product_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          discount_pct?: number
+          expires_at?: string
+          id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      negotiation_sessions: {
+        Row: {
+          budget_max: number | null
+          budget_min: number | null
+          category: string | null
+          created_at: string
+          final_price: number | null
+          id: string
+          preferences: string[]
+          product_id: string | null
+          stage: Database["public"]["Enums"]["session_stage"]
+          user_id: string
+        }
+        Insert: {
+          budget_max?: number | null
+          budget_min?: number | null
+          category?: string | null
+          created_at?: string
+          final_price?: number | null
+          id?: string
+          preferences?: string[]
+          product_id?: string | null
+          stage?: Database["public"]["Enums"]["session_stage"]
+          user_id: string
+        }
+        Update: {
+          budget_max?: number | null
+          budget_min?: number | null
+          category?: string | null
+          created_at?: string
+          final_price?: number | null
+          id?: string
+          preferences?: string[]
+          product_id?: string | null
+          stage?: Database["public"]["Enums"]["session_stage"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negotiation_sessions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          delivery_address: string
+          id: string
+          negotiated_price: number
+          product_id: string
+          quantity: number
+          status: Database["public"]["Enums"]["order_status"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_address: string
+          id?: string
+          negotiated_price: number
+          product_id: string
+          quantity: number
+          status?: Database["public"]["Enums"]["order_status"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_address?: string
+          id?: string
+          negotiated_price?: number
+          product_id?: string
+          quantity?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          image_url: string
+          name: string
+          price: number
+          stock_count: number
+          tags: string[]
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          image_url: string
+          name: string
+          price: number
+          stock_count?: number
+          tags?: string[]
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          name?: string
+          price?: number
+          stock_count?: number
+          tags?: string[]
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      place_order: {
+        Args: {
+          _delivery_address: string
+          _negotiated_price: number
+          _product_id: string
+          _quantity: number
+          _user_id: string
+        }
+        Returns: {
+          created_at: string
+          delivery_address: string
+          id: string
+          negotiated_price: number
+          product_id: string
+          quantity: number
+          status: Database["public"]["Enums"]["order_status"]
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
-      [_ in never]: never
+      agent_kind: "preference" | "deal_hunter" | "negotiation"
+      app_role: "admin" | "seller" | "user"
+      message_role: "user" | "agent" | "system"
+      order_status: "placed" | "confirmed" | "cancelled"
+      session_stage: "preferences" | "matching" | "negotiating" | "ordered"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +396,12 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      agent_kind: ["preference", "deal_hunter", "negotiation"],
+      app_role: ["admin", "seller", "user"],
+      message_role: ["user", "agent", "system"],
+      order_status: ["placed", "confirmed", "cancelled"],
+      session_stage: ["preferences", "matching", "negotiating", "ordered"],
+    },
   },
 } as const
