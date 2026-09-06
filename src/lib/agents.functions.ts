@@ -56,7 +56,7 @@ export const startSession = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const opener =
-      "I'm your Preference Agent. Tell me what you're shopping for — I cover running shoes and earbuds right now.";
+      "I'm your Preference Agent. Tell me what you're shopping for — any category works.";
     await context.supabase.from("conversation_messages").insert({
       session_id: data.id,
       role: "agent",
