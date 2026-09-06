@@ -39,7 +39,10 @@ export const claimSellerAccess = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const expected = process.env["SELLER_ACCESS_CODE"];
     if (!expected) throw new Error("Seller access is not configured.");
-    if (data.code.trim() !== expected) throw new Error("That access code isn't valid.");
+    const normalise = (value: string) => value.trim().replace(/\s+/g, "").toUpperCase();
+    if (normalise(data.code) !== normalise(expected)) {
+      throw new Error("That access code isn't valid.");
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
