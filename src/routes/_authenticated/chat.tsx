@@ -8,6 +8,7 @@ import { TopNav } from "@/components/app/TopNav";
 import { DealPanel } from "@/components/chat/DealPanel";
 import { MessageStream } from "@/components/chat/MessageStream";
 import { OrderModal } from "@/components/chat/OrderModal";
+import { StageProgress } from "@/components/chat/StageProgress";
 import { activeOfferFor, useLiveCatalog } from "@/hooks/useLiveCatalog";
 import {
   loadSession,
@@ -99,6 +100,29 @@ function ChatPage() {
     void boot();
   }, [load, start]);
 
+  const startNewChat = useCallback(async () => {
+    window.localStorage.removeItem(SESSION_KEY);
+    setMessages([]);
+    setMatches(null);
+    setDeal(null);
+    setStage("preferences");
+    setOrderOpen(false);
+    setPlaced(null);
+    setOrderError(null);
+    setThinking(true);
+    try {
+      const res = await start({ data: undefined });
+      window.localStorage.setItem(SESSION_KEY, res.sessionId);
+      const fresh = await load({ data: { sessionId: res.sessionId } });
+      setSessionId(fresh.session.id);
+      setMessages(fresh.messages);
+    } catch {
+      toast.error("Couldn't start a new chat. Please try again.");
+    } finally {
+      setThinking(false);
+    }
+  }, [load, start]);
+
   const submit = useCallback(async () => {
     const value = text.trim();
     if (!value || !sessionId || thinking) return;
@@ -177,7 +201,13 @@ function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <TopNav status={`STAGE · ${stage.toUpperCase()}${liveOffer ? " · LIVE DEAL" : ""}`} />
+      <TopNav
+        status={`STAGE · ${stage.toUpperCase()}${liveOffer ? " · LIVE DEAL" : ""}`}
+        onNewChat={() => void startNewChat()}
+      />
+      <div className="border-b border-border">
+        <StageProgress stage={stage} />
+      </div>
 
       <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 lg:grid-cols-[1fr_360px]">
         <section className="flex min-h-[60vh] flex-col">
