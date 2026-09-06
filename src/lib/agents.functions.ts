@@ -10,6 +10,7 @@ import type { AgentKind, ChatMessage, RankedProduct } from "@/types";
 import { generateStructured, AiError } from "./ai.server";
 import { bestActiveOffer, rankProducts } from "./deal-hunter.server";
 import { clampPrice, openingOffer, priceFloor, round2 } from "./negotiation.server";
+import { fetchLiveProducts } from "./productSearch.server";
 
 export interface DealState {
   product_id: string;
@@ -141,6 +142,9 @@ async function findMatches(
   supabase: ServerSupabase,
   input: { category: string | null; budgetMin: number | null; budgetMax: number | null; preferences: string[] },
 ) {
+  if (input.category) {
+    await fetchLiveProducts(input.category, input.preferences.join(" "));
+  }
   return rankWithClient(supabase, input);
 }
 
