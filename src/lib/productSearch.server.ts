@@ -56,12 +56,25 @@ export async function fetchLiveProducts(
       },
     });
 
-    if (!res.ok) return;
+        if (!res.ok) {
+      console.error("[productSearch] RapidAPI returned non-ok status", res.status, await res.text());
+      return;
+    }
 
-    const json = (await res.json()) as { data?: RapidApiProduct[] };
-    const items = json.data ?? [];
-    if (items.length === 0) return;
+    const json = (await res.json()) as any;
+    // Response shape isn't 100% guaranteed by the docs — handle the common variants defensively.
+    const items: RapidApiProduct[] = Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json?.data?.products)
+        ? json.data.products
+        : Array.isArray(json?.products)
+          ? json.products
+          : [];
 
+    if (items.length === 0) {
+      console.error("[productSearch] no usable items in response, raw shape:", JSON.stringify(json).slice(0, 500));
+      return;
+    }
     const rows = items
       .map((item) => {
         const price = parsePrice(item.product_price) ?? parsePrice(item.typical_price_range?.[0]);
