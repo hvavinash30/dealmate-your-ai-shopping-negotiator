@@ -361,7 +361,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       const message =
         err instanceof AiError
           ? err.message
-          : "Something went wrong while thinking that through. Try again.";
+          : `DEBUG: ${err instanceof Error ? err.message : String(err)}`;
       replies.push(agentMessage(session.stage === "preferences" ? "preference" : "negotiation", message));
     }
 
