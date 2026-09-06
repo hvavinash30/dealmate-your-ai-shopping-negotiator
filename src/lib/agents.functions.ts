@@ -11,8 +11,6 @@ import { generateStructured, AiError } from "./ai.server";
 import { bestActiveOffer, rankProducts } from "./deal-hunter.server";
 import { clampPrice, openingOffer, priceFloor, round2 } from "./negotiation.server";
 
-export const CATEGORIES = ["Running Shoes", "Earbuds"] as const;
-
 export interface DealState {
   product_id: string;
   list_price: number;
@@ -29,7 +27,7 @@ export interface TurnResult {
 
 const preferenceSchema = z.object({
   reply: z.string().min(1).max(400),
-  category: z.enum(CATEGORIES).nullable(),
+  category: z.string().min(1).max(60).nullable(),
   budget_min: z.number().nullable(),
   budget_max: z.number().nullable(),
   preferences: z.array(z.string().min(1).max(40)).max(4),
@@ -199,7 +197,7 @@ export const sendMessage = createServerFn({ method: "POST" })
             role: "system",
             content: [
               "You are DealMate's Preference Agent for an Indian retail shopping assistant.",
-              `Only these categories exist: ${CATEGORIES.join(", ")}. Never invent others.`,
+              "The shopper can be looking for any kind of product — don't restrict them to a fixed list of categories.",
               "Ask at most three short questions total: what they are shopping for, their budget range in INR, and what matters most (1-2 priorities).",
               "Never ask about anything else. Keep replies under 30 words, warm and direct, no emoji.",
               "Set complete=true as soon as category, budget_max and at least one preference are known.",
