@@ -176,6 +176,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          external_id: string | null
           id: string
           image_url: string
           name: string
@@ -186,6 +187,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
+          external_id?: string | null
           id?: string
           image_url: string
           name: string
@@ -196,6 +198,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          external_id?: string | null
           id?: string
           image_url?: string
           name?: string
