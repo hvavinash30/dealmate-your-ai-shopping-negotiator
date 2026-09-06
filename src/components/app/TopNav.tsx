@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, RotateCcw } from "lucide-react";
 
 import { Logo } from "@/components/brand/Logo";
 import { signOut } from "@/hooks/useAuth";
@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 interface TopNavProps {
   /** Short status line shown next to the mark, e.g. the negotiation stage. */
   status?: string;
+  /** When provided, shows a "New chat" button that calls this to reset the conversation. */
+  onNewChat?: () => void;
 }
 
 const links = [
@@ -16,7 +18,7 @@ const links = [
   { to: "/seller", label: "Seller" },
 ] as const;
 
-export function TopNav({ status }: TopNavProps) {
+export function TopNav({ status, onNewChat }: TopNavProps) {
   const navigate = useNavigate();
 
   return (
@@ -44,6 +46,16 @@ export function TopNav({ status }: TopNavProps) {
               {l.label}
             </Link>
           ))}
+          {onNewChat ? (
+            <button
+              type="button"
+              onClick={onNewChat}
+              className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
+            >
+              <RotateCcw className="size-3.5" />
+              <span className="hidden sm:inline">New chat</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={async () => {
