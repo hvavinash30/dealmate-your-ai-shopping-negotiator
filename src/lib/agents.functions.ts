@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import type { Json } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AgentKind, ChatMessage, RankedProduct } from "@/types";
 import { generateStructured, AiError } from "./ai.server";
@@ -124,7 +125,7 @@ export const loadSession = createServerFn({ method: "POST" })
       messages: (messages ?? []) as ChatMessage[],
       matches,
       deal,
-      lockedDeals: (session.locked_deals ?? []) as LockedDeal[],
+      lockedDeals: (session.locked_deals ?? []) as unknown as LockedDeal[],
     };
   });
 
@@ -313,7 +314,7 @@ export const sendMessage = createServerFn({ method: "POST" })
     let matches: RankedProduct[] | null = null;
     let deal: DealState | null = null;
     let stage: string = session.stage;
-    let lockedDeals: LockedDeal[] = (session.locked_deals ?? []) as LockedDeal[];
+    let lockedDeals: LockedDeal[] = (session.locked_deals ?? []) as unknown as LockedDeal[];
 
     try {
       if (session.stage === "preferences" || session.stage === "matching") {
@@ -382,7 +383,7 @@ export const sendMessage = createServerFn({ method: "POST" })
           await supabase
             .from("negotiation_sessions")
             .update({
-              locked_deals: lockedDeals,
+              locked_deals: lockedDeals as unknown as Json,
               category: null,
               budget_min: null,
               budget_max: null,
