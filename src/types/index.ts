@@ -3,6 +3,7 @@
 export type AgentKind = "preference" | "deal_hunter" | "negotiation";
 export type MessageRole = "user" | "agent" | "system";
 export type SessionStage = "preferences" | "matching" | "negotiating" | "ordered";
+export type { QuantityDealState } from "@/lib/quantity-negotiation.functions";
 export type OrderStatus = "placed" | "confirmed" | "cancelled";
 
 export interface Product {
