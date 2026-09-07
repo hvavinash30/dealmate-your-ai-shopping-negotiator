@@ -132,6 +132,32 @@ function AuthPage() {
               : "Takes a few seconds. Then you can start dealing."}
           </p>
 
+          {confirmSent ? (
+            <div
+              role="status"
+              className="mt-7 rounded-lg border border-border bg-panel p-4 text-sm"
+            >
+              <p className="label-mono text-primary">CONFIRM YOUR EMAIL</p>
+              <p className="mt-2 text-foreground">
+                We sent a confirmation link to <span className="font-semibold">{email}</span>.
+                Open it to activate your account, then come back and sign in to continue.
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                Can&apos;t find it? Check your spam folder.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmSent(false);
+                  setMode("signin");
+                  setPassword("");
+                }}
+                className="mt-4 h-11 w-full rounded-md bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Back to sign in
+              </button>
+            </div>
+          ) : (
           <form onSubmit={submit} className="mt-7 space-y-4" noValidate>
             <div>
               <label htmlFor="email" className="label-mono text-muted-foreground">
