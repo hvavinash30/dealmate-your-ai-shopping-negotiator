@@ -17,6 +17,12 @@ interface OrderModalProps {
   onConfirm: (input: { quantity: number; address: string }) => void;
 }
 
+const PAYMENT_METHODS = [
+  { id: "upi", label: "UPI", hint: "Pay instantly with any UPI app" },
+  { id: "card", label: "Card", hint: "Credit or debit card" },
+  { id: "cod", label: "Cash on delivery", hint: "Pay when it arrives" },
+] as const;
+
 export function OrderModal({
   product,
   unitPrice,
