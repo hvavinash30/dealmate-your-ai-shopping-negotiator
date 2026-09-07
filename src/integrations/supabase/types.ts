@@ -92,6 +92,7 @@ export type Database = {
           created_at: string
           final_price: number | null
           id: string
+          locked_deals: Json
           preferences: string[]
           product_id: string | null
           stage: Database["public"]["Enums"]["session_stage"]
@@ -104,6 +105,7 @@ export type Database = {
           created_at?: string
           final_price?: number | null
           id?: string
+          locked_deals?: Json
           preferences?: string[]
           product_id?: string | null
           stage?: Database["public"]["Enums"]["session_stage"]
@@ -116,6 +118,7 @@ export type Database = {
           created_at?: string
           final_price?: number | null
           id?: string
+          locked_deals?: Json
           preferences?: string[]
           product_id?: string | null
           stage?: Database["public"]["Enums"]["session_stage"]
