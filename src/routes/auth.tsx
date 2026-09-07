@@ -202,12 +202,14 @@ function AuthPage() {
               {busy ? "Working…" : mode === "signin" ? "Sign in" : "Create account"}
             </button>
           </form>
+          )}
 
           <button
             type="button"
             onClick={() => {
               setMode(mode === "signin" ? "signup" : "signin");
               setError(null);
+              setConfirmSent(false);
             }}
             className="mt-5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
