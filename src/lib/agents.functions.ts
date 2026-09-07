@@ -12,6 +12,7 @@ import { generateStructured, AiError } from "./ai.server";
 import { bestActiveOffer, rankProducts } from "./deal-hunter.server";
 import { clampPrice, openingOffer, priceFloor, round2 } from "./negotiation.server";
 import { fetchLiveProducts } from "./productSearch.server";
+import { normalizeQuantityDeal, type QuantityDealState } from "./quantity-negotiation.functions";
 
 export interface DealState {
   product_id: string;
@@ -126,6 +127,7 @@ export const loadSession = createServerFn({ method: "POST" })
       matches,
       deal,
       lockedDeals: (session.locked_deals ?? []) as unknown as LockedDeal[],
+      quantityDeal: normalizeQuantityDeal(session.quantity_negotiation) as QuantityDealState | null,
     };
   });
 
@@ -204,16 +206,16 @@ async function runPreferenceTurn(
   const budgetMin = result.budget_min ?? (budgetMax ? Math.round(budgetMax * 0.5) : null);
   const complete = result.complete && !!result.category && !!budgetMax && result.preferences.length > 0;
 
-  await supabase
-    .from("negotiation_sessions")
-    .update({
-      category: result.category,
-      budget_min: budgetMin,
-      budget_max: budgetMax,
-      preferences: result.preferences,
-      stage: complete ? "matching" : "preferences",
-    })
-    .eq("id", sessionId);
+    await supabase
+      .from("negotiation_sessions")
+      .update({
+        product_id: data.productId,
+        final_price: bounded.price,
+        stage: "negotiating",
+        quantity_negotiation: {},
+        final_deal: null,
+      })
+      .eq("id", data.sessionId);
 
   let stage = complete ? "matching" : "preferences";
   let matches: RankedProduct[] | null = null;
