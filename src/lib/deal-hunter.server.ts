@@ -5,6 +5,7 @@
  * with active, unexpired live offers, then scored.
  */
 import type { LiveOffer, Product, RankedProduct } from "@/types";
+import { categoriesMatch } from "./categories.server";
 import { round2 } from "./negotiation.server";
 
 const BUDGET_TOLERANCE = 0.15;
@@ -44,7 +45,7 @@ export function rankProducts(
   const target = input.budgetMax ?? input.budgetMin ?? null;
 
   return products
-    .filter((p) => !input.category || p.category.toLowerCase() === input.category.toLowerCase())
+    .filter((p) => !input.category || categoriesMatch(p.category, input.category))
     .map<RankedProduct>((product) => {
       const offer = bestActiveOffer(offers, product.id);
       const price = effectivePrice(product, offer);
