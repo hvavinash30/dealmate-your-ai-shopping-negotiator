@@ -211,6 +211,84 @@ export type Database = {
         }
         Relationships: []
       }
+      quantity_negotiations: {
+        Row: {
+          agreed_unit_price: number
+          created_at: string
+          expires_at: string
+          final_deal: Json | null
+          id: string
+          list_price: number
+          max_quantity: number
+          max_total_budget: number | null
+          min_quantity: number
+          mode: string
+          preferred_quantity: number
+          product_id: string
+          round: number
+          rounds: Json
+          session_id: string
+          state: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agreed_unit_price: number
+          created_at?: string
+          expires_at?: string
+          final_deal?: Json | null
+          id?: string
+          list_price: number
+          max_quantity?: number
+          max_total_budget?: number | null
+          min_quantity?: number
+          mode?: string
+          preferred_quantity?: number
+          product_id: string
+          round?: number
+          rounds?: Json
+          session_id: string
+          state?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agreed_unit_price?: number
+          created_at?: string
+          expires_at?: string
+          final_deal?: Json | null
+          id?: string
+          list_price?: number
+          max_quantity?: number
+          max_total_budget?: number | null
+          min_quantity?: number
+          mode?: string
+          preferred_quantity?: number
+          product_id?: string
+          round?: number
+          rounds?: Json
+          session_id?: string
+          state?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quantity_negotiations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quantity_negotiations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "negotiation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seller_access_codes: {
         Row: {
           code: string
