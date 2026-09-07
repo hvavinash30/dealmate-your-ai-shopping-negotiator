@@ -1,9 +1,9 @@
 import { motion } from "motion/react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, PackageCheck } from "lucide-react";
 
 import { OfferCountdown } from "@/components/chat/OfferCountdown";
 import { activeOfferFor } from "@/hooks/useLiveCatalog";
-import type { DealState } from "@/lib/agents.functions";
+import type { DealState, LockedDeal } from "@/lib/agents.functions";
 import { discountPct, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { LiveOffer, Product, RankedProduct } from "@/types";
@@ -13,6 +13,7 @@ interface DealPanelProps {
   offers: LiveOffer[];
   matches: RankedProduct[] | null;
   deal: DealState | null;
+  lockedDeals?: LockedDeal[];
   switching: boolean;
   onSelect: (productId: string) => void;
   onOrder: () => void;
@@ -23,6 +24,7 @@ export function DealPanel({
   offers,
   matches,
   deal,
+  lockedDeals,
   switching,
   onSelect,
   onOrder,
@@ -98,6 +100,31 @@ export function DealPanel({
             {dealProduct.stock_count < 1 ? "Out of stock" : "Order at this price"}
           </button>
         </motion.div>
+      ) : null}
+
+      {lockedDeals && lockedDeals.length > 0 ? (
+        <div>
+          <p className="label-mono text-muted-foreground">LOCKED IN THIS CHAT</p>
+          <div className="mt-3 space-y-2">
+            {lockedDeals.map((locked, i) => (
+              <div
+                key={`${locked.product_id}-${i}`}
+                className="flex items-center gap-3 rounded-lg border border-border bg-panel p-3"
+              >
+                <PackageCheck className="size-4 shrink-0 text-sage" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{locked.product_name}</p>
+                  {locked.category ? (
+                    <p className="label-mono text-muted-foreground">{locked.category}</p>
+                  ) : null}
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-primary">
+                  {formatINR(locked.price)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {matches && matches.length > 0 ? (
