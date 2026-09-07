@@ -168,6 +168,35 @@ export function OrderModal({
               />
             </div>
 
+            <fieldset>
+              <legend className="label-mono text-muted-foreground">PAYMENT METHOD</legend>
+              <div className="mt-2 space-y-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <label
+                    key={method.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors ${
+                      payment === method.id
+                        ? "border-primary bg-elevated"
+                        : "border-border bg-surface hover:bg-elevated"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={method.id}
+                      checked={payment === method.id}
+                      onChange={() => setPayment(method.id)}
+                      className="accent-primary"
+                    />
+                    <span>
+                      <span className="block font-medium text-foreground">{method.label}</span>
+                      <span className="block text-xs text-muted-foreground">{method.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <dl className="space-y-1.5 border-t border-border pt-4 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <dt>Negotiated unit price</dt>
