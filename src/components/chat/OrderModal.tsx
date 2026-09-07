@@ -88,6 +88,10 @@ export function OrderModal({
                   </dd>
                 </div>
                 <div className="flex justify-between">
+                  <dt>Payment</dt>
+                  <dd className="text-foreground">{paymentLabel}</dd>
+                </div>
+                <div className="flex justify-between">
                   <dt>Delivering to</dt>
                   <dd className="max-w-[60%] text-right text-foreground">
                     {placed.delivery_address}
