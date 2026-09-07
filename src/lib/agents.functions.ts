@@ -206,17 +206,6 @@ async function runPreferenceTurn(
   const budgetMin = result.budget_min ?? (budgetMax ? Math.round(budgetMax * 0.5) : null);
   const complete = result.complete && !!result.category && !!budgetMax && result.preferences.length > 0;
 
-    await supabase
-      .from("negotiation_sessions")
-      .update({
-        product_id: data.productId,
-        final_price: bounded.price,
-        stage: "negotiating",
-        quantity_negotiation: {},
-        final_deal: null,
-      })
-      .eq("id", data.sessionId);
-
   let stage = complete ? "matching" : "preferences";
   let matches: RankedProduct[] | null = null;
   let deal: DealState | null = null;
