@@ -9,6 +9,7 @@
  * never sees a hard error here.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { resolveCategory } from "./categories.server";
 
 interface RapidApiProduct {
   product_id?: string;
@@ -38,6 +39,15 @@ export async function fetchLiveProducts(
 ): Promise<void> {
   const key = process.env["RAPIDAPI_KEY"];
   if (!key) return;
+
+  // Resolve against whatever categories already exist in the catalogue right
+  // now — no fixed list. A genuinely new category just passes through as-is
+  // and becomes part of that dynamic set for every future shopper.
+  const { data: existing } = await supabaseAdmin.from("products").select("category");
+  const canonicalCategory = resolveCategory(
+    category,
+    (existing ?? []).map((r: any) => r.category as string),
+  );
 
   const query = [category, preferenceQuery].filter(Boolean).join(" ").trim();
   if (!query) return;
@@ -84,9 +94,9 @@ export async function fetchLiveProducts(
         return {
           external_id: item.product_id,
           name: item.product_title.slice(0, 200),
-          category,
+          category: canonicalCategory,
           price,
-          tags: [category.toLowerCase()],
+          tags: [canonicalCategory.toLowerCase()],
           image_url: image,
           stock_count: 25,
         };
