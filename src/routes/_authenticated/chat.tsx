@@ -18,7 +18,15 @@ import {
   type DealState,
   type LockedDeal,
 } from "@/lib/agents.functions";
+import type { NegotiationMode } from "@/lib/bulk-negotiation.server";
 import { placeOrder, type PlacedOrder } from "@/lib/orders.functions";
+import {
+  acceptQuantityDeal,
+  continueNegotiation,
+  startQuantityNegotiation,
+  tryAnotherSeller,
+  type QuantityDealState,
+} from "@/lib/quantity-negotiation.functions";
 import type { ChatMessage, RankedProduct } from "@/types";
 
 export const Route = createFileRoute("/_authenticated/chat")({
@@ -51,6 +59,10 @@ function ChatPage() {
   const send = useServerFn(sendMessage);
   const pick = useServerFn(selectProduct);
   const order = useServerFn(placeOrder);
+  const startQty = useServerFn(startQuantityNegotiation);
+  const continueQty = useServerFn(continueNegotiation);
+  const acceptQty = useServerFn(acceptQuantityDeal);
+  const switchSeller = useServerFn(tryAnotherSeller);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -66,6 +78,10 @@ function ChatPage() {
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  const [quantityDeal, setQuantityDeal] = useState<QuantityDealState | null>(null);
+  const [quantityStarting, setQuantityStarting] = useState(false);
+  const [quantityActing, setQuantityActing] = useState(false);
 
   const booted = useRef(false);
 
@@ -83,6 +99,7 @@ function ChatPage() {
           setMatches(res.matches);
           setDeal(res.deal);
           setLockedDeals(res.lockedDeals ?? []);
+          setQuantityDeal((res as any).quantityDeal ?? null);
           setStage(res.session.stage);
           return;
         } catch {
@@ -109,6 +126,7 @@ function ChatPage() {
     setMatches(null);
     setDeal(null);
     setLockedDeals([]);
+    setQuantityDeal(null);
     setStage("preferences");
     setOrderOpen(false);
     setPlaced(null);
@@ -165,6 +183,7 @@ function ChatPage() {
         setMessages((prev) => [...prev, ...res.messages]);
         setMatches(res.matches ?? matches);
         setDeal(res.deal);
+        setQuantityDeal(null);
         setStage(res.stage);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Couldn't switch product.");
@@ -201,6 +220,68 @@ function ChatPage() {
     },
     [deal, order, sessionId],
   );
+
+  const startQuantityDeal = useCallback(
+    async (mode: NegotiationMode) => {
+      if (!sessionId) return;
+      setQuantityStarting(true);
+      try {
+        const res = await startQty({ data: { sessionId, mode } });
+        setMessages((prev) => [...prev, ...res.messages]);
+        setQuantityDeal(res.deal);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't start that negotiation.");
+      } finally {
+        setQuantityStarting(false);
+      }
+    },
+    [sessionId, startQty],
+  );
+
+  const continueQuantityDeal = useCallback(async () => {
+    if (!sessionId) return;
+    setQuantityActing(true);
+    try {
+      const res = await continueQty({ data: { sessionId } });
+      setMessages((prev) => [...prev, ...res.messages]);
+      setQuantityDeal(res.deal);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No further round is possible.");
+    } finally {
+      setQuantityActing(false);
+    }
+  }, [continueQty, sessionId]);
+
+  const acceptQuantityDeal_ = useCallback(async () => {
+    if (!sessionId) return;
+    setQuantityActing(true);
+    try {
+      const res = await acceptQty({ data: { sessionId } });
+      setQuantityDeal(res.deal);
+      if (res.deal.bestOffer) {
+        setDeal((prev) => (prev ? { ...prev, price: res.deal.bestOffer!.unitPrice } : prev));
+      }
+      toast.success("Deal accepted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't accept that deal.");
+    } finally {
+      setQuantityActing(false);
+    }
+  }, [acceptQty, sessionId]);
+
+  const tryAnotherSeller_ = useCallback(async () => {
+    if (!sessionId) return;
+    setQuantityActing(true);
+    try {
+      const res = await switchSeller({ data: { sessionId } });
+      setMessages((prev) => [...prev, ...res.messages]);
+      setQuantityDeal(res.deal);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't switch seller.");
+    } finally {
+      setQuantityActing(false);
+    }
+  }, [sessionId, switchSeller]);
 
   const liveOffer = deal ? activeOfferFor(offers, deal.product_id) : null;
 
@@ -257,6 +338,13 @@ function ChatPage() {
             setOrderError(null);
             setOrderOpen(true);
           }}
+          quantityDeal={quantityDeal}
+          quantityStarting={quantityStarting}
+          quantityActing={quantityActing}
+          onStartQuantityDeal={(mode) => void startQuantityDeal(mode)}
+          onContinueQuantityDeal={() => void continueQuantityDeal()}
+          onAcceptQuantityDeal={() => void acceptQuantityDeal_()}
+          onTryAnotherSeller={() => void tryAnotherSeller_()}
         />
       </div>
 
@@ -267,6 +355,7 @@ function ChatPage() {
           placing={placing}
           placed={placed}
           error={orderError}
+          initialQuantity={quantityDeal?.bestOffer?.quantity ?? 1}
           onClose={() => setOrderOpen(false)}
           onConfirm={(input) => void confirmOrder(input)}
         />
