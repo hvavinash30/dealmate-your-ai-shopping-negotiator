@@ -19,11 +19,17 @@ export interface DealState {
   at_floor: boolean;
 }
 
+export interface LockedDeal extends DealState {
+  category: string | null;
+  product_name: string;
+}
+
 export interface TurnResult {
   messages: ChatMessage[];
   matches: RankedProduct[] | null;
   deal: DealState | null;
   stage: string;
+  lockedDeals?: LockedDeal[];
 }
 
 const preferenceSchema = z.object({
@@ -36,7 +42,7 @@ const preferenceSchema = z.object({
 });
 
 const negotiationSchema = z.object({
-  intent: z.enum(["counter", "accept", "question"]),
+  intent: z.enum(["counter", "accept", "question", "new_item"]),
   target_price: z.number().nullable(),
   reply: z.string().min(1).max(320),
 });
@@ -118,6 +124,7 @@ export const loadSession = createServerFn({ method: "POST" })
       messages: (messages ?? []) as ChatMessage[],
       matches,
       deal,
+      lockedDeals: (session.locked_deals ?? []) as LockedDeal[],
     };
   });
 
@@ -146,6 +153,119 @@ async function findMatches(
     await fetchLiveProducts(input.category, input.preferences.join(" "));
   }
   return rankWithClient(supabase, input);
+}
+
+interface PreferenceTurnOutcome {
+  replies: Array<{ agent: AgentKind; content: string }>;
+  matches: RankedProduct[] | null;
+  deal: DealState | null;
+  stage: string;
+}
+
+/**
+ * Runs one Preference Agent turn: extracts category/budget/preferences from
+ * the shopper's message, and once complete, hands off to the Deal-Hunter and
+ * opens negotiation on the top match. Shared by (a) a session that starts in
+ * the "preferences" stage, and (b) a mid-conversation pivot to a new item
+ * after a previous deal was locked in.
+ */
+async function runPreferenceTurn(
+  supabase: ServerSupabase,
+  sessionId: string,
+  known: { category: string | null; budget_min: number | null; budget_max: number | null; preferences: string[] },
+  transcript: string,
+  shopperText: string,
+): Promise<PreferenceTurnOutcome> {
+  const replies: Array<{ agent: AgentKind; content: string }> = [];
+
+  const result = await generateStructured(preferenceSchema, [
+    {
+      role: "system",
+      content: [
+        "You are DealMate's Preference Agent for an Indian retail shopping assistant.",
+        "The shopper can be looking for any kind of product — don't restrict them to a fixed list of categories.",
+        "Ask at most three short questions total: what they are shopping for, their budget range in INR, and what matters most (1-2 priorities).",
+        "Never ask about anything else. Keep replies under 30 words, warm and direct, no emoji.",
+        "Set complete=true as soon as category, budget_max and at least one preference are known.",
+        "When complete, the reply should say you're handing over to the Deal-Hunter.",
+        'Respond ONLY as JSON: {"reply":string,"category":string|null,"budget_min":number|null,"budget_max":number|null,"preferences":string[],"complete":boolean}',
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: `Known so far: category=${known.category ?? "unknown"}, budget=${known.budget_min ?? "?"}-${known.budget_max ?? "?"}, preferences=${(known.preferences ?? []).join(", ") || "none"}.\nConversation:\n${transcript}\nShopper: ${shopperText}`,
+    },
+  ]);
+
+  replies.push(agentMessage("preference", result.reply));
+
+  const budgetMax = result.budget_max;
+  const budgetMin = result.budget_min ?? (budgetMax ? Math.round(budgetMax * 0.5) : null);
+  const complete = result.complete && !!result.category && !!budgetMax && result.preferences.length > 0;
+
+  await supabase
+    .from("negotiation_sessions")
+    .update({
+      category: result.category,
+      budget_min: budgetMin,
+      budget_max: budgetMax,
+      preferences: result.preferences,
+      stage: complete ? "matching" : "preferences",
+    })
+    .eq("id", sessionId);
+
+  let stage = complete ? "matching" : "preferences";
+  let matches: RankedProduct[] | null = null;
+  let deal: DealState | null = null;
+
+  if (complete) {
+    matches = await findMatches(supabase, {
+      category: result.category,
+      budgetMin,
+      budgetMax,
+      preferences: result.preferences,
+    });
+
+    if (matches.length === 0) {
+      replies.push(
+        agentMessage(
+          "deal_hunter",
+          "Nothing in the catalogue fits that brief yet. Try widening the budget and I'll look again.",
+        ),
+      );
+    } else {
+      const top = matches[0]!;
+      replies.push(
+        agentMessage(
+          "deal_hunter",
+          `Found ${matches.length} strong ${matches.length === 1 ? "match" : "matches"}. ${top.name} ranks first${top.offer ? " and already carries a live deal" : ""}.`,
+        ),
+      );
+
+      const proposed = openingOffer(top.price, !!top.offer);
+      const bounded = clampPrice(top.price, Math.min(proposed, top.effective_price));
+      deal = {
+        product_id: top.id,
+        list_price: top.price,
+        price: bounded.price,
+        at_floor: bounded.atFloor,
+      };
+      replies.push(
+        agentMessage(
+          "negotiation",
+          `I found room on the ${top.name}. I can take it from ₹${Math.round(top.price)} to ₹${Math.round(bounded.price)} right now. Want me to push further?`,
+        ),
+      );
+
+      await supabase
+        .from("negotiation_sessions")
+        .update({ stage: "negotiating", product_id: top.id, final_price: bounded.price })
+        .eq("id", sessionId);
+      stage = "negotiating";
+    }
+  }
+
+  return { replies, matches, deal, stage };
 }
 
 /**
@@ -193,94 +313,26 @@ export const sendMessage = createServerFn({ method: "POST" })
     let matches: RankedProduct[] | null = null;
     let deal: DealState | null = null;
     let stage: string = session.stage;
+    let lockedDeals: LockedDeal[] = (session.locked_deals ?? []) as LockedDeal[];
 
     try {
       if (session.stage === "preferences") {
-        const result = await generateStructured(preferenceSchema, [
+        const outcome = await runPreferenceTurn(
+          supabase,
+          data.sessionId,
           {
-            role: "system",
-            content: [
-              "You are DealMate's Preference Agent for an Indian retail shopping assistant.",
-              "The shopper can be looking for any kind of product — don't restrict them to a fixed list of categories.",
-              "Ask at most three short questions total: what they are shopping for, their budget range in INR, and what matters most (1-2 priorities).",
-              "Never ask about anything else. Keep replies under 30 words, warm and direct, no emoji.",
-              "Set complete=true as soon as category, budget_max and at least one preference are known.",
-              "When complete, the reply should say you're handing over to the Deal-Hunter.",
-              'Respond ONLY as JSON: {"reply":string,"category":string|null,"budget_min":number|null,"budget_max":number|null,"preferences":string[],"complete":boolean}',
-            ].join(" "),
+            category: session.category,
+            budget_min: session.budget_min ? Number(session.budget_min) : null,
+            budget_max: session.budget_max ? Number(session.budget_max) : null,
+            preferences: session.preferences ?? [],
           },
-          {
-            role: "user",
-            content: `Known so far: category=${session.category ?? "unknown"}, budget=${session.budget_min ?? "?"}-${session.budget_max ?? "?"}, preferences=${(session.preferences ?? []).join(", ") || "none"}.\nConversation:\n${transcript}\nShopper: ${data.text}`,
-          },
-        ]);
-
-        replies.push(agentMessage("preference", result.reply));
-
-        const budgetMax = result.budget_max;
-        const budgetMin = result.budget_min ?? (budgetMax ? Math.round(budgetMax * 0.5) : null);
-        const complete =
-          result.complete && !!result.category && !!budgetMax && result.preferences.length > 0;
-
-        await supabase
-          .from("negotiation_sessions")
-          .update({
-            category: result.category,
-            budget_min: budgetMin,
-            budget_max: budgetMax,
-            preferences: result.preferences,
-            stage: complete ? "matching" : "preferences",
-          })
-          .eq("id", data.sessionId);
-
-        stage = complete ? "matching" : "preferences";
-
-        if (complete) {
-          matches = await findMatches(supabase, {
-            category: result.category,
-            budgetMin,
-            budgetMax,
-            preferences: result.preferences,
-          });
-
-          if (matches.length === 0) {
-            replies.push(
-              agentMessage(
-                "deal_hunter",
-                "Nothing in the catalogue fits that brief yet. Try widening the budget and I'll look again.",
-              ),
-            );
-          } else {
-            const top = matches[0]!;
-            replies.push(
-              agentMessage(
-                "deal_hunter",
-                `Found ${matches.length} strong ${matches.length === 1 ? "match" : "matches"}. ${top.name} ranks first${top.offer ? " and already carries a live deal" : ""}.`,
-              ),
-            );
-
-            const proposed = openingOffer(top.price, !!top.offer);
-            const bounded = clampPrice(top.price, Math.min(proposed, top.effective_price));
-            deal = {
-              product_id: top.id,
-              list_price: top.price,
-              price: bounded.price,
-              at_floor: bounded.atFloor,
-            };
-            replies.push(
-              agentMessage(
-                "negotiation",
-                `I found room on the ${top.name}. I can take it from ₹${Math.round(top.price)} to ₹${Math.round(bounded.price)} right now. Want me to push further?`,
-              ),
-            );
-
-            await supabase
-              .from("negotiation_sessions")
-              .update({ stage: "negotiating", product_id: top.id, final_price: bounded.price })
-              .eq("id", data.sessionId);
-            stage = "negotiating";
-          }
-        }
+          transcript,
+          data.text,
+        );
+        replies.push(...outcome.replies);
+        matches = outcome.matches;
+        deal = outcome.deal;
+        stage = outcome.stage;
       } else {
         // Negotiation stage — the model reads intent, the server sets the price.
         const productId = session.product_id;
@@ -301,11 +353,11 @@ export const sendMessage = createServerFn({ method: "POST" })
             role: "system",
             content: [
               "You are DealMate's Negotiation Agent. The shopper is negotiating one product in INR.",
-              "Read their message and classify intent: 'counter' if they name or imply a lower price, 'accept' if they agree to the current price, 'question' otherwise.",
+              "Read their message and classify intent: 'counter' if they name or imply a lower price, 'accept' if they agree to the current price, 'new_item' if they want to start shopping for a DIFFERENT product/category instead of or in addition to this one, 'question' otherwise.",
               "target_price must be the number they asked for, or null.",
               "Write a reply of at most 2 short sentences, confident and honest, no emoji.",
-              "IMPORTANT: never write a rupee figure yourself. Where the final price belongs, write the literal token {price}. The system substitutes the validated price.",
-              'Respond ONLY as JSON: {"intent":"counter"|"accept"|"question","target_price":number|null,"reply":string}',
+              "IMPORTANT: never write a rupee figure yourself. Where the final price belongs, write the literal token {price}. The system substitutes the validated price. If intent is new_item, omit {price} entirely.",
+              'Respond ONLY as JSON: {"intent":"counter"|"accept"|"question"|"new_item","target_price":number|null,"reply":string}',
             ].join(" "),
           },
           {
@@ -314,48 +366,95 @@ export const sendMessage = createServerFn({ method: "POST" })
           },
         ]);
 
-        let finalPrice = currentPrice;
-        let atFloor = currentPrice <= priceFloor(listPrice) + 0.01;
+        if (parsed.intent === "new_item") {
+          // Park the current deal instead of losing it, then hand this same
+          // message straight to the Preference Agent for the new category.
+          const parkedDeal: LockedDeal = {
+            product_id: productId,
+            product_name: product.name,
+            category: session.category,
+            list_price: listPrice,
+            price: round2(currentPrice),
+            at_floor: currentPrice <= priceFloor(listPrice) + 0.01,
+          };
+          lockedDeals = [...lockedDeals, parkedDeal];
 
-        if (parsed.intent === "counter" && parsed.target_price !== null) {
-          const bounded = clampPrice(listPrice, Math.min(parsed.target_price, currentPrice));
-          finalPrice = bounded.price;
-          atFloor = bounded.atFloor;
-        }
+          await supabase
+            .from("negotiation_sessions")
+            .update({
+              locked_deals: lockedDeals,
+              category: null,
+              budget_min: null,
+              budget_max: null,
+              preferences: [],
+              product_id: null,
+              final_price: null,
+              stage: "preferences",
+            })
+            .eq("id", data.sessionId);
 
-        const reply = parsed.reply.includes("{price}")
-          ? parsed.reply.replace(/\{price\}/g, `₹${Math.round(finalPrice)}`)
-          : `${parsed.reply} Final price: ₹${Math.round(finalPrice)}.`;
-
-        replies.push(agentMessage("negotiation", reply));
-        if (atFloor && parsed.intent === "counter") {
           replies.push(
             agentMessage(
               "negotiation",
-              "That's the seller's floor for this item — I can't go under it, but the deal is locked at that number.",
+              `Locked in ${product.name} at ₹${Math.round(currentPrice)}. You can review it any time before checkout. Now, what else are you shopping for?`,
             ),
           );
+
+          const outcome = await runPreferenceTurn(
+            supabase,
+            data.sessionId,
+            { category: null, budget_min: null, budget_max: null, preferences: [] },
+            transcript,
+            data.text,
+          );
+          replies.push(...outcome.replies);
+          matches = outcome.matches;
+          deal = outcome.deal;
+          stage = outcome.stage;
+        } else {
+          let finalPrice = currentPrice;
+          let atFloor = currentPrice <= priceFloor(listPrice) + 0.01;
+
+          if (parsed.intent === "counter" && parsed.target_price !== null) {
+            const bounded = clampPrice(listPrice, Math.min(parsed.target_price, currentPrice));
+            finalPrice = bounded.price;
+            atFloor = bounded.atFloor;
+          }
+
+          const reply = parsed.reply.includes("{price}")
+            ? parsed.reply.replace(/\{price\}/g, `₹${Math.round(finalPrice)}`)
+            : `${parsed.reply} Final price: ₹${Math.round(finalPrice)}.`;
+
+          replies.push(agentMessage("negotiation", reply));
+          if (atFloor && parsed.intent === "counter") {
+            replies.push(
+              agentMessage(
+                "negotiation",
+                "That's the seller's floor for this item — I can't go under it, but the deal is locked at that number.",
+              ),
+            );
+          }
+
+          deal = {
+            product_id: productId,
+            list_price: listPrice,
+            price: round2(finalPrice),
+            at_floor: atFloor,
+          };
+
+          await supabase
+            .from("negotiation_sessions")
+            .update({ final_price: finalPrice })
+            .eq("id", data.sessionId);
+
+          matches = await findMatches(supabase, {
+            category: session.category,
+            budgetMin: session.budget_min ? Number(session.budget_min) : null,
+            budgetMax: session.budget_max ? Number(session.budget_max) : null,
+            preferences: session.preferences ?? [],
+          });
+          stage = "negotiating";
         }
-
-        deal = {
-          product_id: productId,
-          list_price: listPrice,
-          price: round2(finalPrice),
-          at_floor: atFloor,
-        };
-
-        await supabase
-          .from("negotiation_sessions")
-          .update({ final_price: finalPrice })
-          .eq("id", data.sessionId);
-
-        matches = await findMatches(supabase, {
-          category: session.category,
-          budgetMin: session.budget_min ? Number(session.budget_min) : null,
-          budgetMax: session.budget_max ? Number(session.budget_max) : null,
-          preferences: session.preferences ?? [],
-        });
-        stage = "negotiating";
       }
     } catch (err) {
       const message =
@@ -380,7 +479,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       if (row) inserted.push(row as ChatMessage);
     }
 
-    return { messages: inserted, matches, deal, stage };
+    return { messages: inserted, matches, deal, stage, lockedDeals };
   });
 
 /** Switches the negotiation to another matched product. */
