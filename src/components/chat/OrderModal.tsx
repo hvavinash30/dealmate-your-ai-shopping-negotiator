@@ -28,6 +28,9 @@ export function OrderModal({
 }: OrderModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState("");
+  const [payment, setPayment] = useState<(typeof PAYMENT_METHODS)[number]["id"]>("upi");
+  const paymentLabel =
+    PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? "UPI";
   const maxQty = Math.max(1, Math.min(10, product.stock_count));
   const total = unitPrice * quantity;
 
