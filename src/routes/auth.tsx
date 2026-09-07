@@ -59,12 +59,17 @@ function AuthPage() {
     setBusy(true);
     try {
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
           options: { emailRedirectTo: `${window.location.origin}/chat` },
         });
         if (signUpError) throw signUpError;
+        if (!data.session) {
+          setConfirmSent(true);
+          toast.success("Check your inbox to confirm your email.");
+          return;
+        }
         toast.success("Account created. Taking you to the floor.");
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
