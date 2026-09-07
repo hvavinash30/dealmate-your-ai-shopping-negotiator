@@ -316,7 +316,7 @@ export const sendMessage = createServerFn({ method: "POST" })
     let lockedDeals: LockedDeal[] = (session.locked_deals ?? []) as LockedDeal[];
 
     try {
-      if (session.stage === "preferences") {
+      if (session.stage === "preferences" || session.stage === "matching") {
         const outcome = await runPreferenceTurn(
           supabase,
           data.sessionId,
@@ -461,7 +461,12 @@ export const sendMessage = createServerFn({ method: "POST" })
         err instanceof AiError
           ? err.message
           : `DEBUG: ${err instanceof Error ? err.message : String(err)}`;
-      replies.push(agentMessage(session.stage === "preferences" ? "preference" : "negotiation", message));
+      replies.push(
+        agentMessage(
+          session.stage === "preferences" || session.stage === "matching" ? "preference" : "negotiation",
+          message,
+        ),
+      );
     }
 
     const inserted: ChatMessage[] = [];
