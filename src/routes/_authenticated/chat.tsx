@@ -16,6 +16,7 @@ import {
   sendMessage,
   startSession,
   type DealState,
+  type LockedDeal,
 } from "@/lib/agents.functions";
 import { placeOrder, type PlacedOrder } from "@/lib/orders.functions";
 import type { ChatMessage, RankedProduct } from "@/types";
@@ -55,6 +56,7 @@ function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [matches, setMatches] = useState<RankedProduct[] | null>(null);
   const [deal, setDeal] = useState<DealState | null>(null);
+  const [lockedDeals, setLockedDeals] = useState<LockedDeal[]>([]);
   const [stage, setStage] = useState<string>("preferences");
   const [thinking, setThinking] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -80,6 +82,7 @@ function ChatPage() {
           setMessages(res.messages);
           setMatches(res.matches);
           setDeal(res.deal);
+          setLockedDeals(res.lockedDeals ?? []);
           setStage(res.session.stage);
           return;
         } catch {
@@ -105,6 +108,7 @@ function ChatPage() {
     setMessages([]);
     setMatches(null);
     setDeal(null);
+    setLockedDeals([]);
     setStage("preferences");
     setOrderOpen(false);
     setPlaced(null);
@@ -143,13 +147,14 @@ function ChatPage() {
       setMessages((prev) => [...prev, ...res.messages]);
       setMatches(res.matches);
       setDeal(res.deal);
+      setLockedDeals(res.lockedDeals ?? lockedDeals);
       setStage(res.stage);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "That didn't go through.");
     } finally {
       setThinking(false);
     }
-  }, [send, sessionId, text, thinking]);
+  }, [send, sessionId, text, thinking, lockedDeals]);
 
   const onSelect = useCallback(
     async (productId: string) => {
@@ -244,6 +249,7 @@ function ChatPage() {
           offers={offers}
           matches={matches}
           deal={deal}
+          lockedDeals={lockedDeals}
           switching={switching}
           onSelect={(id) => void onSelect(id)}
           onOrder={() => {
