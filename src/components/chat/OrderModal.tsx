@@ -17,6 +17,12 @@ interface OrderModalProps {
   onConfirm: (input: { quantity: number; address: string }) => void;
 }
 
+const PAYMENT_METHODS = [
+  { id: "upi", label: "UPI", hint: "Pay instantly with any UPI app" },
+  { id: "card", label: "Card", hint: "Credit or debit card" },
+  { id: "cod", label: "Cash on delivery", hint: "Pay when it arrives" },
+] as const;
+
 export function OrderModal({
   product,
   unitPrice,
@@ -28,6 +34,9 @@ export function OrderModal({
 }: OrderModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState("");
+  const [payment, setPayment] = useState<(typeof PAYMENT_METHODS)[number]["id"]>("upi");
+  const paymentLabel =
+    PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? "UPI";
   const maxQty = Math.max(1, Math.min(10, product.stock_count));
   const total = unitPrice * quantity;
 
@@ -77,6 +86,10 @@ export function OrderModal({
                   <dd className="font-semibold text-primary">
                     {formatINR(placed.negotiated_price * placed.quantity)}
                   </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt>Payment</dt>
+                  <dd className="text-foreground">{paymentLabel}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt>Delivering to</dt>
@@ -154,6 +167,35 @@ export function OrderModal({
                 className="mt-2 w-full resize-none rounded-md border border-border bg-surface p-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
               />
             </div>
+
+            <fieldset>
+              <legend className="label-mono text-muted-foreground">PAYMENT METHOD</legend>
+              <div className="mt-2 space-y-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <label
+                    key={method.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors ${
+                      payment === method.id
+                        ? "border-primary bg-elevated"
+                        : "border-border bg-surface hover:bg-elevated"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={method.id}
+                      checked={payment === method.id}
+                      onChange={() => setPayment(method.id)}
+                      className="accent-primary"
+                    />
+                    <span>
+                      <span className="block font-medium text-foreground">{method.label}</span>
+                      <span className="block text-xs text-muted-foreground">{method.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <dl className="space-y-1.5 border-t border-border pt-4 text-sm">
               <div className="flex justify-between text-muted-foreground">
