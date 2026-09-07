@@ -84,17 +84,19 @@ export type Database = {
           },
         ]
       }
-      negotiation_sessions: {
+           negotiation_sessions: {
         Row: {
           budget_max: number | null
           budget_min: number | null
           category: string | null
           created_at: string
+          final_deal: Json | null
           final_price: number | null
           id: string
           locked_deals: Json
           preferences: string[]
           product_id: string | null
+          quantity_negotiation: Json
           stage: Database["public"]["Enums"]["session_stage"]
           user_id: string
         }
@@ -103,11 +105,13 @@ export type Database = {
           budget_min?: number | null
           category?: string | null
           created_at?: string
+          final_deal?: Json | null
           final_price?: number | null
           id?: string
           locked_deals?: Json
           preferences?: string[]
           product_id?: string | null
+          quantity_negotiation?: Json
           stage?: Database["public"]["Enums"]["session_stage"]
           user_id: string
         }
@@ -116,15 +120,16 @@ export type Database = {
           budget_min?: number | null
           category?: string | null
           created_at?: string
+          final_deal?: Json | null
           final_price?: number | null
           id?: string
           locked_deals?: Json
           preferences?: string[]
           product_id?: string | null
+          quantity_negotiation?: Json
           stage?: Database["public"]["Enums"]["session_stage"]
           user_id?: string
-        }
-        Relationships: [
+        }        Relationships: [
           {
             foreignKeyName: "negotiation_sessions_product_id_fkey"
             columns: ["product_id"]
